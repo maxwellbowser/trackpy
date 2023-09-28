@@ -200,6 +200,7 @@ def refine(*args, **kwargs):
                   "trackpy.refine", PendingDeprecationWarning)
     return refine_com(*args, **kwargs)
 
+# Here is the locate function #locate
 
 def locate(raw_image, diameter, minmass=None, maxsize=None, separation=None,
            noise_size=1, smoothing_size=None, threshold=None, invert=False,
@@ -302,6 +303,7 @@ def locate(raw_image, diameter, minmass=None, maxsize=None, separation=None,
     .. [1] Crocker, J.C., Grier, D.G. http://dx.doi.org/10.1006/jcis.1996.0217
 
     """
+
     if invert:
         warnings.warn("The invert argument will be deprecated. Use a PIMS "
                       "pipeline for this.", PendingDeprecationWarning)
@@ -333,6 +335,8 @@ def locate(raw_image, diameter, minmass=None, maxsize=None, separation=None,
     is_float_image = not np.issubdtype(raw_image.dtype, np.integer)
 
     if separation is None:
+
+        # Separation  = even number always
         separation = tuple([x + 1 for x in diameter])
     else:
         separation = validate_tuple(separation, ndim)
@@ -359,12 +363,14 @@ def locate(raw_image, diameter, minmass=None, maxsize=None, separation=None,
             threshold = 1/255.
         else:
             threshold = 1
-
+## Fban
     # Invert the image if necessary
     if invert:
         raw_image = invert_image(raw_image)
 
     # Determine `image`: the image to find the local maxima on.
+#   preprocess  = False
+
     if preprocess:
         image = bandpass(raw_image, noise_size, smoothing_size, threshold)
     else:
@@ -386,11 +392,18 @@ def locate(raw_image, diameter, minmass=None, maxsize=None, separation=None,
     #   - Extended particles that cannot be explored during subpixel
     #       refinement ("separation")
     #   - Invalid output of the bandpass step ("smoothing_size")
+
+    # margin basically choses which ever is the largest, from radius, separation floored by 2 (minus 1), or smoothing size floored by 2
+    # hence local maxima
     margin = tuple([max(rad, sep // 2 - 1, sm // 2) for (rad, sep, sm) in
                     zip(radius, separation, smoothing_size)])
+    
+
     # Find features with minimum separation distance of `separation`. This
     # excludes detection of small features close to large, bright features
     # using the `maxsize` argument.
+
+    # This is where the features are really found (local brightness maxima!)
     coords = grey_dilation(image, separation, percentile, margin, precise=False)
 
     # Refine their locations and characterize mass, size, etc.
@@ -399,6 +412,8 @@ def locate(raw_image, diameter, minmass=None, maxsize=None, separation=None,
                                 engine=engine, characterize=characterize)
     if len(refined_coords) == 0:
         return refined_coords
+    
+    #refining coordinates is complicated, lots of code and simple operations strung together, made to work very efficiently
 
     # Flat peaks return multiple nearby maxima. Eliminate duplicates.
     if np.all(np.greater(separation, 0)):
@@ -543,17 +558,30 @@ def batch(frames, diameter, output=None, meta=None, processes='auto',
             # Interpret meta to be a file handle.
             record_meta(meta_info, meta)
 
+
+# Partial??
+
     # Prepare wrapped function for mapping to `frames`
+    # the wrapped function is partial, 
+
     curried_locate = partial(locate, **kwargs)
 
     pool, map_func = get_pool(processes)
 
     if after_locate is None:
+        # Do not know why this needs to be a function
         def after_locate(frame_no, features):
             return features
 
     try:
         all_features = []
+        # Basically the map_func(curried_locate, frames) is passing the locate function, with the kwargs and the frames, to the pool
+        # for multiprocessing, so that it can iterate through each of the frames for object tracking, while also doing them simultaneously
+        # via the multiprocessing parallel computing stuff.
+
+        # this running of the locate function is then returned as i (from enumerate, to count the iterations) and the features which are found, from locate
+        # the features is the tracked df.
+
         for i, features in enumerate(map_func(curried_locate, frames)):
             image = frames[i]
             if hasattr(image, 'frame_no') and image.frame_no is not None:

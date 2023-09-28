@@ -113,15 +113,23 @@ def grey_dilation(image, separation, percentile=64, margin=None, precise=True):
     size = [int(2 * s / np.sqrt(ndim)) for s in separation]
 
     # The intersection of the image with its dilation gives local maxima.
+    # this dilation is sort of a smoothing thing, gif of whats happening: (https://en.wikipedia.org/wiki/File:Grayscale_Morphological_Dilation.gif)
     dilation = ndimage.grey_dilation(image, size, mode='constant')
+
+    # Basically where in the image is there a dilation that is also above the threshold
+    # This is the locating. Finding maxima within the image
     maxima = (image == dilation) & (image > threshold)
+
     if np.sum(maxima) == 0:
         warnings.warn("Image contains no local maxima.", UserWarning)
         return np.empty((0, ndim))
 
+    # Basically making the locations thing, finding the coordinates of objects and stacking them all.
     pos = np.vstack(np.where(maxima)).T
 
     # Do not accept peaks near the edges.
+
+    # excluding objects near the edges
     shape = np.array(image.shape)
     near_edge = np.any((pos < margin) | (pos > (shape - margin - 1)), 1)
     pos = pos[~near_edge]
@@ -131,6 +139,8 @@ def grey_dilation(image, separation, percentile=64, margin=None, precise=True):
         return np.empty((0, ndim))
 
     # Remove local maxima that are too close to each other
+
+    # If there are maxima too close, it drops them
     if precise:
         pos = drop_close(pos, separation, image[maxima][~near_edge])
 
